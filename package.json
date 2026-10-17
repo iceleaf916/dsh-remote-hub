@@ -1,6 +1,6 @@
 {
-  "name": "@yks/dsh-remote-hub",
-  "version": "0.1.2",
+  "name": "@iceleaf916/dsh-remote-hub",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "main": "./lib/index.js",

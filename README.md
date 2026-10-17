@@ -21,7 +21,14 @@ dsh plugin --profile desktop add github:iceleaf916/dsh-remote-hub
 已有安装升级到最新版：
 
 ```sh
-dsh plugin --profile desktop update @yks/dsh-remote-hub
+dsh plugin --profile desktop update @iceleaf916/dsh-remote-hub
+```
+
+0.1.3 起包名改为 `@iceleaf916/dsh-remote-hub`。如果已安装旧包名 `@yks/dsh-remote-hub`，请先备份 profile，再迁移并重启 DSH：
+
+```sh
+dsh plugin --profile desktop remove @yks/dsh-remote-hub
+dsh plugin --profile desktop add github:iceleaf916/dsh-remote-hub
 ```
 
 远端 DSH Host 也需要安装插件。把 `web` 替换为远端实际使用的 profile：
@@ -33,7 +40,7 @@ dsh plugin --profile web add github:iceleaf916/dsh-remote-hub
 DSH profile 会由 CLI 更新。修改任何现有 profile 前先备份其 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml` 和 `cordis.patch.yml`。移除方式：
 
 ```sh
-dsh plugin --profile desktop remove @yks/dsh-remote-hub
+dsh plugin --profile desktop remove @iceleaf916/dsh-remote-hub
 ```
 
 安装后重启对应 DSH Host。侧栏的“设备管理”中添加 SSH 别名；本机必须能以无交互方式运行 `ssh <别名>`。
