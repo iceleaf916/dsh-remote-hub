@@ -83,3 +83,17 @@ test("remote create requests route by workspace while local create stays local",
 		restore();
 	}
 });
+
+test("remote projection reads normalize rc.2 snapshots for the desktop client", async () => {
+	const {RemoteHubRuntime} = await import("../lib/host/runtime.js");
+	const runtime = Object.create(RemoteHubRuntime.prototype);
+	const snapshot = {asOfSeq: 140, values: {modelSelection: {next: {provider: "me", model: "deepseek-flash"}}}};
+	runtime.requestDevice = async () => snapshot;
+	const request = {sessionId: remoteSessionId(DEVICE_ID, "session")};
+	assert.deepEqual(await runtime.routeSessionMethod("projections", request), {kind: "sequenced", ...snapshot});
+	const modern = {kind: "migration-required", values: {}};
+	runtime.requestDevice = async () => modern;
+	assert.equal(await runtime.routeSessionMethod("projections", request), modern);
+	runtime.requestDevice = async () => null;
+	assert.equal(await runtime.routeSessionMethod("projections", request), null);
+});

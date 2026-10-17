@@ -13,6 +13,7 @@ test("Typert endpoints match the provided Remote Hub service methods", () => {
 		"deviceStatus",
 		"disconnect",
 		"listDevices",
+		"modelCatalog",
 		"listRemoteSessions",
 		"listRemoteWorkspaces",
 		"removeDevice"

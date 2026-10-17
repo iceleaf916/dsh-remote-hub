@@ -9,6 +9,7 @@ test("agent bridge requires its token and serves sessions, workspaces and NDJSON
 	const directory = await mkdtemp(join(tmpdir(), "dsh-remote-hub-test-"));
 	const endpointFile = join(directory, "agent.json");
 	const controller = {
+		modelCatalog: async () => ({groups: [{id: "remote-provider", models: [{id: "remote-model"}]}], default: {provider: "remote-provider", model: "remote-model"}, failures: []}),
 		list: async () => ({ items: [{ sessionId: "session-1", title: "Remote test" }] }),
 		page: async (request) => ({ sessionId: request.sessionId, cursor: request.cursor }),
 		follow: (request) => (async function* () {
@@ -45,6 +46,10 @@ test("agent bridge requires its token and serves sessions, workspaces and NDJSON
 
 		const sessions = await fetch(`${base}/v1/sessions/list`, { method: "POST", headers, body: "{}" });
 		assert.deepEqual((await sessions.json()).result.items[0].sessionId, "session-1");
+
+		const catalog = await fetch(`${base}/v1/session/modelCatalog`, {method: "POST", headers, body: "{}"});
+		assert.equal(catalog.status, 200);
+		assert.equal((await catalog.json()).result.groups[0].id, "remote-provider");
 
 		const page = await fetch(`${base}/v1/session/page`, { method: "POST", headers, body: JSON.stringify({ request: { sessionId: "session-1", cursor: 5 } }) });
 		assert.deepEqual((await page.json()).result, { sessionId: "session-1", cursor: 5 });
