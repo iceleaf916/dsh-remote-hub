@@ -179,8 +179,9 @@ test("adding an SSH device uses an in-app dialog and registers the alias", async
 	}));
 	tree = materialize(harness.renderRaw());
 	assert.match(textContent(tree), /office-pc/);
-	const firstDeviceGroup = findNode(tree, (node) => node.type === "button" && node.props.className === "rh-section-head");
-	assert.match(textContent(firstDeviceGroup), /office-pc/, "the selected remote device should be visible before local sessions push it below the fold");
+	const devicePicker = findNode(tree, (node) => node.type === "button" && node.props.className === "rh-device");
+	assert.match(textContent(devicePicker), /office-pc/);
+	assert.equal(findNode(tree, node => node.props.className === "rh-section-head"), undefined);
 });
 
 test("removing an SSH device uses an in-app confirmation dialog", async () => {
@@ -202,7 +203,7 @@ test("removing an SSH device uses an in-app confirmation dialog", async () => {
 for (const id of ["local-session", "remote:0123456789abcdef:remote-session"]) {
 	test(`opening ${id} uses the native workspace navigation`, async () => {
 		const harness = createHarness([], {sessions: {ids: ["local-session"], byId: {"local-session": {title: "本机会话"}}}});
-		const group = findNode(harness.renderRaw(), node => node.type?.name === "DeviceGroup");
+		const group = findNode(harness.renderRaw(), node => node.type?.name === "DeviceProjects");
 		const device = {...group.props.device, projects: [{id: "test-project", title: "测试项目", sessions: [{sessionId: id, title: "测试会话"}]}]};
 		const tree = materialize({...group, props: {...group.props, device}});
 		await findNode(tree, node => node.type === "button" && node.props.className === "rh-session").props.onClick();
@@ -229,4 +230,34 @@ test("a newly created remote session opens through the same native navigation", 
 	await findNode(tree, node => node.type === "button" && node.props.className === "rh-footrow" && textContent(node).includes("新建会话")).props.onClick();
 	assert.deepEqual(harness.navigation, [{action: "open", id: "remote:0123456789abcdef:created-session"}]);
 	assert.equal(harness.calls.find(call => call.method === "createRemoteSession").args.request.deviceId, "0123456789abcdef");
+});
+
+test("switching devices only shows the selected device projects and preserves project expansion", async () => {
+	const harness = createHarness([{id: "office", label: "office-pc"}], {
+		workspaces: {items: [{id: "project", title: "本机项目", sessionIds: ["local-session"]}]},
+		sessions: {ids: ["local-session"], byId: {"local-session": {title: "本机会话"}}}
+	});
+	harness.renderRaw();
+	await new Promise(resolve => setImmediate(resolve));
+	let tree = materialize(harness.renderRaw());
+	assert.match(textContent(findNode(tree, node => node.props.className === "rh-scroll")), /本机项目.*本机会话/);
+	findNode(tree, node => node.props.className === "rh-project-head").props.onClick();
+	tree = materialize(harness.renderRaw());
+	assert.doesNotMatch(textContent(findNode(tree, node => node.props.className === "rh-scroll")), /本机会话/);
+	const pick = (id) => {
+		findNode(materialize(harness.renderRaw()), node => node.props.className === "rh-device").props.onClick();
+		findNode(harness.renderRaw(), node => node.type?.name === "DevicePopover").props.onPick(id);
+	};
+	pick("office");
+	tree = materialize(harness.renderRaw());
+	const projects = findNode(tree, node => node.props.className === "rh-scroll");
+	assert.doesNotMatch(textContent(projects), /本机项目|本机会话/);
+	assert.equal(findNode(tree, node => node.props.className === "rh-projects").props["aria-label"], "office-pc的项目");
+	assert.equal(findNode(tree, node => node.props.className === "rh-section-head"), undefined);
+	pick("local");
+	tree = materialize(harness.renderRaw());
+	assert.equal(findNode(tree, node => node.props.className === "rh-project-head").props["aria-expanded"], false);
+	findNode(tree, node => node.props.className === "rh-project-head").props.onClick();
+	tree = materialize(harness.renderRaw());
+	assert.match(textContent(findNode(tree, node => node.props.className === "rh-scroll")), /本机会话/);
 });
