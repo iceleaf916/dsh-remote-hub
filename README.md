@@ -44,7 +44,11 @@ dsh plugin --profile desktop remove @yks/dsh-remote-hub
 node --test
 ```
 
-测试覆盖设备/会话 ID 编解码、SSH 配置解析和别名校验、Host 方法路由与恢复、远端桥认证、工作区/会话读取及 follow 流。
+测试覆盖本机/远端会话条目点击、原生会话导航、新建会话跳转、设备/会话 ID 编解码、SSH 配置解析和别名校验、Host 方法路由与恢复、远端桥认证、工作区/会话读取及 follow 流。
+
+## 会话导航兼容性
+
+0.1.2 修复侧栏点击后报 `layout.selectPanel: main panel ... is not registered` 的问题。`layout.selectPanel()` 仅用于全局面板；插件复用原生 `sidebar.workspaces` 入口提供的 `open` / `startSession`，由 DSH 负责保留会话、加载历史、更新选择并切回聊天页。客户端显式依赖原生工作区插件。
 
 ## 当前边界
 

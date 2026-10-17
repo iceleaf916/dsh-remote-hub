@@ -8,8 +8,11 @@ const clientSource = await readFile(new URL("../lib/client.js", import.meta.url)
 function createHarness(initialDevices = [], localState = {}) {
 	let plugin;
 	let sidebar;
+	let sidebarInject;
+	const navigation = [];
 	let hookState = [];
 	let hookCursor = 0;
+	let mounted = false;
 	let devices = [...initialDevices];
 	const calls = [];
 	const React = {
@@ -20,7 +23,9 @@ function createHarness(initialDevices = [], localState = {}) {
 			else if (children.length > 1) resolvedProps.children = children;
 			return { type, props: resolvedProps };
 		},
-		useEffect() {},
+		useEffect(callback, dependencies) {
+			if (dependencies.length === 0 && !mounted) { mounted = true; callback(); }
+		},
 		useState(initialValue) {
 			const index = hookCursor++;
 			if (!(index in hookState)) hookState[index] = initialValue;
@@ -48,6 +53,7 @@ function createHarness(initialDevices = [], localState = {}) {
 			async call(_route, path, { args } = {}) {
 				const method = path.split("/").at(-1);
 				calls.push({ method, args });
+				if (method === "createRemoteSession") return {ok: true, value: {sessionId: "remote:0123456789abcdef:created-session"}};
 				if (method === "listDevices") return { ok: true, value: devices };
 				if (method === "addDevice") {
 					const device = { id: "office-device", label: args.request.sshAlias, sshAlias: args.request.sshAlias };
@@ -69,11 +75,15 @@ function createHarness(initialDevices = [], localState = {}) {
 		},
 		slots: {
 			inject(_slot, callback) { callback(); },
-			register(_config, component) { sidebar = component; return () => {}; }
+			entries() { return [{ registrant: "@deepseek-ai/dsh-client-ui-workspace", inject: () => ({
+				open: (id) => navigation.push({ action: "open", id }),
+				startSession: () => navigation.push({ action: "start" })
+			}) }]; },
+			register(config, component) { sidebar = component; sidebarInject = config.inject; return () => {}; }
 		},
 		get(name) {
 			if (name === "connection") return connection;
-			if (name === "layout") return { selectPanel() {} };
+			if (name === "layout") return { selectPanel(id) { if (id !== null) throw new Error(`main panel "${id}" is not registered`); } };
 			if (name === "sessions") return { refresh: async () => {}, create: async () => {} };
 			return undefined;
 		}
@@ -82,6 +92,7 @@ function createHarness(initialDevices = [], localState = {}) {
 	const wrapper = sidebar({ connection, layout: context.get("layout"), sessions: context.get("sessions") });
 	const body = wrapper.props.children;
 	const props = {
+		...sidebarInject(),
 		connection,
 		layout: context.get("layout"),
 		sessions: context.get("sessions"),
@@ -95,7 +106,7 @@ function createHarness(initialDevices = [], localState = {}) {
 		return body.type(props);
 	}
 
-	return { calls, renderRaw, connection };
+	return { calls, navigation, renderRaw, connection };
 }
 
 function materialize(node) {
@@ -186,4 +197,36 @@ test("removing an SSH device uses an in-app confirmation dialog", async () => {
 	const removeButton = findNode(dialog, (node) => node.type === "button" && textContent(node).includes("移除设备"));
 	await removeButton.props.onClick();
 	assert.ok(harness.calls.some((call) => call.method === "removeDevice" && call.args.deviceId === "office-device"));
+});
+
+for (const id of ["local-session", "remote:0123456789abcdef:remote-session"]) {
+	test(`opening ${id} uses the native workspace navigation`, async () => {
+		const harness = createHarness([], {sessions: {ids: ["local-session"], byId: {"local-session": {title: "本机会话"}}}});
+		const group = findNode(harness.renderRaw(), node => node.type?.name === "DeviceGroup");
+		const device = {...group.props.device, projects: [{id: "test-project", title: "测试项目", sessions: [{sessionId: id, title: "测试会话"}]}]};
+		const tree = materialize({...group, props: {...group.props, device}});
+		await findNode(tree, node => node.type === "button" && node.props.className === "rh-session").props.onClick();
+		assert.deepEqual(harness.navigation, [{action: "open", id}]);
+		assert.doesNotMatch(textContent(materialize(harness.renderRaw())), /not registered/);
+	});
+}
+
+test("starting a local session uses native creation and navigation", async () => {
+	const harness = createHarness();
+	const tree = materialize(harness.renderRaw());
+	await findNode(tree, node => node.type === "button" && node.props.className === "rh-footrow" && textContent(node).includes("新建会话")).props.onClick();
+	assert.deepEqual(harness.navigation, [{action: "start"}]);
+});
+
+test("a newly created remote session opens through the same native navigation", async () => {
+	const harness = createHarness([{id: "0123456789abcdef", label: "office-pc"}]);
+	harness.renderRaw();
+	await new Promise(resolve => setImmediate(resolve));
+	let tree = materialize(harness.renderRaw());
+	findNode(tree, node => node.type === "button" && node.props.className === "rh-device").props.onClick();
+	findNode(harness.renderRaw(), node => node.type?.name === "DevicePopover").props.onPick("0123456789abcdef");
+	tree = materialize(harness.renderRaw());
+	await findNode(tree, node => node.type === "button" && node.props.className === "rh-footrow" && textContent(node).includes("新建会话")).props.onClick();
+	assert.deepEqual(harness.navigation, [{action: "open", id: "remote:0123456789abcdef:created-session"}]);
+	assert.equal(harness.calls.find(call => call.method === "createRemoteSession").args.request.deviceId, "0123456789abcdef");
 });
