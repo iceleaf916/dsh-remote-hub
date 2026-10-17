@@ -1,0 +1,5 @@
+- insert:
+    - id: dsh-remote-hub
+      name: "@yks/dsh-remote-hub"
+      config:
+        role: both
