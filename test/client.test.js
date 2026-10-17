@@ -5,7 +5,7 @@ import test from "node:test";
 
 const clientSource = await readFile(new URL("../lib/client.js", import.meta.url), "utf8");
 
-function createHarness(initialDevices = []) {
+function createHarness(initialDevices = [], localState = {}) {
 	let plugin;
 	let sidebar;
 	let hookState = [];
@@ -85,8 +85,8 @@ function createHarness(initialDevices = []) {
 		connection,
 		layout: context.get("layout"),
 		sessions: context.get("sessions"),
-		useWorkspaces: () => ({ items: [] }),
-		useSessions: () => ({ ids: [], byId: {} }),
+		useWorkspaces: () => localState.workspaces || { items: [] },
+		useSessions: () => localState.sessions || { ids: [], byId: {} },
 		useSessionStatus: () => new Map()
 	};
 
@@ -124,6 +124,26 @@ function textContent(node) {
 	if (typeof node !== "object") return String(node);
 	return textContent(node.props?.children);
 }
+
+test("federated remote sessions do not appear in local workspace groups", () => {
+	const remoteId = "remote:0123456789abcdef:session-remote";
+	const harness = createHarness([], {
+		workspaces: {
+			items: [{ id: "local-workspace", title: "本机项目", path: "/work/local", sessionIds: ["local-session", remoteId] }]
+		},
+		sessions: {
+			ids: ["local-session", remoteId],
+			byId: {
+				"local-session": { title: "本机会话" },
+				[remoteId]: { title: "远端重复会话" }
+			}
+		}
+	});
+	const tree = materialize(harness.renderRaw());
+
+	assert.match(textContent(tree), /本机会话/);
+	assert.doesNotMatch(textContent(tree), /远端重复会话/);
+});
 
 test("adding an SSH device uses an in-app dialog and registers the alias", async () => {
 	const harness = createHarness();

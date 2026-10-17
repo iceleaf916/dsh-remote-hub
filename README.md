@@ -18,6 +18,12 @@
 dsh plugin --profile desktop add github:iceleaf916/dsh-remote-hub
 ```
 
+已有安装升级到最新版：
+
+```sh
+dsh plugin --profile desktop update @yks/dsh-remote-hub
+```
+
 远端 DSH Host 也需要安装插件。把 `web` 替换为远端实际使用的 profile：
 
 ```sh
